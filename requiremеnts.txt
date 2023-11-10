@@ -1,0 +1,160 @@
+# Описание зависимостей в программе:
+
+## Сущности
+
+### `class VKAPIClient`. 
+При создании экземпляра класса в качестве аргументов необходимо передать следующие параметры:
+`token`(токен для ВК), `user_id`(числовой id пользователя ВК). 
+
+Методы класса:
+
+* `get_common_params`. 
+Возращает словарь с общими параметрами для передачи запросов к API ВК: 
+```python
+  {
+    'access_token': self.token,
+    'v': '5.131'
+  }
+```
+
+* `get_profile_photos`. 
+Добавляет в параметры для передачи запросов к API дополнительные параметры, 
+необходимые при обращении к методу `photos.get`:
+```python
+  params = self.get_common_params()
+  params.update({
+    'owner_id': self.user_id, 
+    'album_id': 'profile', 
+    'rev': '1',
+    'extended': '1',
+    'count': 5
+  })
+```
+Направляет запрос к API и возвращает объект, содержащий число результатов и массив объектов 
+запрашиваемых фотографий профиля пользователя:
+```python
+  response = requests.get(f'{self.base_url_API}/photos.get', params=params)
+  return response.json()
+```
+
+*`get_photos_information`. 
+Получает параметры фотографий, необходимые для  дальнейшего сохранения:     
+```python
+  photos_information = self.get_profile_photos().get('response', {}).get('items', {})
+  photos_list_for_save = []
+
+  for photo_info in photos_information:
+    photos_list_for_save.append({
+      'date': str(photo_info.get('date', 0)),
+      'name': str(photo_info.get('likes', {}).get('count')),
+      'url': photo_info.get('sizes', [])[-1].get('url'),
+      'size': photo_info.get('sizes', [])[-1].get('type')
+    })
+```
+Меняет название фотографий, если количество лайков одинаково(добавляет дату загрузки):
+```python
+  for id1, photo_content_1 in enumerate(photos_list_for_save):
+    for id2, photo_content_2 in enumerate(photos_list_for_save):
+      if id1 == id2:
+        continue
+
+      if photo_content_1['name'] == photo_content_2['name']:
+        photo_content_1['name'] += '_' + photo_content_1['date']
+        photo_content_2['name'] += '_' + photo_content_2['date']
+```
+Создаёт словарь с информацией по фотографиям (для json-файла с результатами):     
+```python
+  photos_information_for_file = []
+
+  for photo_content in photos_list_for_save:
+    photos_information_for_file.append({
+      "file_name": f"{photo_content['name']}.jpg",
+      "size": photo_content['size']          
+    })
+Возвращает объект с данными для сохранения фотографий и для json-файла с результатами:       
+```python
+  {
+    'photos_list_for_save': photos_list_for_save,
+    photos_information_for_file': photos_information_for_file
+  }
+
+*`saving_local_photos`.
+Получает данные для сохранения фотографий:
+```python
+  photos_information = self.get_photos_information().get('photos_list_for_save')
+
+  for photo in photos_information:
+    file_name = f"{photo['name']}.jpg"
+    photo_content = requests.get(photo['url'])
+```
+Записывает фотографии в локальную директорию:
+```python
+  with open(file_name, 'wb') as f:
+    f.write(photo_content.content)
+```
+
+*`saving_photos_information_file`.
+Записывает информацию по фотографиям в json-файл:
+```python
+  dict = {"data": self.get_photos_information().get('photos_information_for_file')}
+
+  with open('photos_information.json', 'w') as f:            
+    json.dump(dict, f, indent = 2)
+```
+
+### `class YADiskAPIClient`. 
+При создании экземпляра класса в качестве аргумента необходимо передать параметр:
+`token`(токен для доступа к API Я.Диска). 
+
+Методы класса:
+
+*`get_headers`.
+Возвращает заголовок авторизации для запроса к API Я.Диска:
+```python
+  {'Authorization': self.token}
+```    
+*`creating_folder`.
+Направляет запрос для создания папки на Я.Диске:
+```python
+  params = {'path': 'Photos_from_VK'}
+  requests.put(self.base_url_ya_disk,
+              params=params,
+              headers=self.get_headers())
+```
+
+*`uploading_photos_to_disk`.
+Читает информацию о фотографиях из json-файла:
+```python
+  with open('photos_information.json', encoding='utf-8') as f:
+    data_json = json.load(f)
+        
+  photos_information  = data_json['data']
+```
+Создаёт папку на Я.Диске и записывает в неё фотографии, направляя запросы к API Я.Диска:
+```python
+  self.creating_folder()
+
+  for photo in photos_information:
+    params = {'path': f"Photos_from_VK/{photo['file_name']}"}
+
+    response_1 = requests.get(f'{self.base_url_ya_disk}/upload', 
+                              params=params,
+                              headers=self.get_headers())
+        
+    url_for_upload = response_1.json().get('href')
+    file_name = photo['file_name']
+
+    with open(file_name, 'rb') as file:
+      requests.put(url_for_upload, files={'file':file})
+```
+## Логирование для отслеживания процесса программы:
+```python
+  logging.basicConfig(level=logging.INFO, filename="backup_log.log",filemode="w",
+                    format="%(asctime)s %(levelname)s %(message)s")
+
+  logging.debug("A DEBUG Message")
+  logging.info("An INFO")
+  logging.warning("A WARNING")
+  logging.error("An ERROR")
+  logging.critical("A message of CRITICAL severity")
+```
