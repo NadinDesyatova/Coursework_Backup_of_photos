@@ -18,12 +18,13 @@
 ```
 
 * `get_profile_photos`. 
+При вызове метода в качестве аргумента необходимо передать параметр `user_id`(числовой id пользователя ВК).
 Добавляет в параметры для передачи запросов к API дополнительные параметры, 
-необходимые при обращении к методу `photos.get`:
+необходимые при обращении к методу API ВК `photos.get`:
 ```python
   params = self.get_common_params()
   params.update({
-    'owner_id': self.user_id, 
+    'owner_id': user_id, 
     'album_id': 'profile', 
     'rev': '1',
     'extended': '1',
@@ -37,10 +38,11 @@
   return response.json()
 ```
 
-*`get_photos_information`. 
+*`__get_photos_information`. 
+При вызове метода в качестве аргумента необходимо передать параметр `user_id`(числовой id пользователя ВК).
 Получает параметры фотографий, необходимые для  дальнейшего сохранения:     
 ```python
-  photos_information = self.get_profile_photos().get('response', {}).get('items', {})
+  photos_information = self.get_profile_photos(user_id).get('response', {}).get('items', {})
   photos_list_for_save = []
 
   for photo_info in photos_information:
@@ -62,7 +64,7 @@
         photo_content_1['name'] += '_' + photo_content_1['date']
         photo_content_2['name'] += '_' + photo_content_2['date']
 ```
-Создаёт словарь с информацией по фотографиям (для json-файла с результатами):     
+Создаёт список с информацией по фотографиям (для json-файла с результатами):     
 ```python
   photos_information_for_file = []
 
@@ -79,9 +81,10 @@
   }
 
 *`saving_local_photos`.
+При вызове метода в качестве аргумента необходимо передать параметр `user_id`(числовой id пользователя ВК).
 Получает данные для сохранения фотографий:
 ```python
-  photos_information = self.get_photos_information().get('photos_list_for_save')
+  photos_information = self.__get_photos_information(user_id).get('photos_list_for_save')
 
   for photo in photos_information:
     file_name = f"{photo['name']}.jpg"
@@ -94,12 +97,21 @@
 ```
 
 *`saving_photos_information_file`.
+При вызове метода в качестве аргумента необходимо передать следующие параметры:
+`file_name`(имя файла, в который необходимо сохранить информацию о фотографиях);
+`user_id`(числовой id пользователя ВК).
 Записывает информацию по фотографиям в json-файл:
 ```python
-  dict = {"data": self.get_photos_information().get('photos_information_for_file')}
+  dict = {"data": self.__get_photos_information(user_id).get('photos_information_for_file')}
 
-  with open('photos_information.json', 'w') as f:            
+  json_file_name = f'{file_name}.json'
+
+  with open('json_file_name', 'w') as f:            
     json.dump(dict, f, indent = 2)
+```
+Возвращает список с информацией по фотографиям:
+```python
+    return dict['data']
 ```
 
 ### `class YADiskAPIClient`. 
@@ -108,38 +120,37 @@
 
 Методы класса:
 
-*`get_headers`.
+*`__get_headers`.
 Возвращает заголовок авторизации для запроса к API Я.Диска:
 ```python
   {'Authorization': self.token}
 ```    
-*`creating_folder`.
+*`__creating_folder`.
+При вызове метода в качестве аргумента необходимо передать параметр `folder_name`
+(имя папки, в которую необходимо сохранить фотографии).
 Направляет запрос для создания папки на Я.Диске:
 ```python
-  params = {'path': 'Photos_from_VK'}
+  params = {'path': folder_name}
   requests.put(self.base_url_ya_disk,
               params=params,
-              headers=self.get_headers())
+              headers=self.__get_headers())
 ```
 
 *`uploading_photos_to_disk`.
-Читает информацию о фотографиях из json-файла:
-```python
-  with open('photos_information.json', encoding='utf-8') as f:
-    data_json = json.load(f)
-        
-  photos_information  = data_json['data']
-```
+При вызове метода в качестве аргументов необходимо передать следующие параметры: 
+`folder_name`(имя папки, в которую необходимо сохранить фотографии),
+`photos_information`(значением параметра должна быть переменная, 
+в которую необходимо сохранить вызов метода класса VKAPIClient `saving_photos_information_file`)
 Создаёт папку на Я.Диске и записывает в неё фотографии, направляя запросы к API Я.Диска:
 ```python
-  self.creating_folder()
+  self.__creating_folder(folder_name)
 
   for photo in photos_information:
-    params = {'path': f"Photos_from_VK/{photo['file_name']}"}
+    params = {'path': f"{folder_name}/{photo['file_name']}"}
 
     response_1 = requests.get(f'{self.base_url_ya_disk}/upload', 
                               params=params,
-                              headers=self.get_headers())
+                              headers=self.__get_headers())
         
     url_for_upload = response_1.json().get('href')
     file_name = photo['file_name']
